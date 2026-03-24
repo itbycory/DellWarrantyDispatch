@@ -438,7 +438,7 @@ export default function SettingsPage() {
               <Input
                 value={cfg.orgName}
                 onChange={(e) => set("orgName")(e.target.value)}
-                placeholder="Millicent High School"
+                placeholder="e.g. Acme School"
               />
             </Field>
 
@@ -447,14 +447,14 @@ export default function SettingsPage() {
                 <Input
                   value={cfg.orgContactName}
                   onChange={(e) => set("orgContactName")(e.target.value)}
-                  placeholder="Jane Smith"
+                  placeholder="e.g. Jane Smith"
                 />
               </Field>
               <Field label="Contact Phone">
                 <Input
                   value={cfg.orgContactPhone}
                   onChange={(e) => set("orgContactPhone")(e.target.value)}
-                  placeholder="0887330000"
+                  placeholder="e.g. 0800000000"
                 />
               </Field>
             </div>
@@ -464,7 +464,7 @@ export default function SettingsPage() {
                 type="email"
                 value={cfg.orgContactEmail}
                 onChange={(e) => set("orgContactEmail")(e.target.value)}
-                placeholder="jane@schools.sa.edu.au"
+                placeholder="e.g. it@yourorg.com"
               />
             </Field>
 
@@ -472,7 +472,7 @@ export default function SettingsPage() {
               <Input
                 value={cfg.orgAddressLine1}
                 onChange={(e) => set("orgAddressLine1")(e.target.value)}
-                placeholder="2 Mount Burr Road"
+                placeholder="e.g. 1 Example Street"
               />
             </Field>
 
@@ -489,14 +489,14 @@ export default function SettingsPage() {
                 <Input
                   value={cfg.orgCity}
                   onChange={(e) => set("orgCity")(e.target.value)}
-                  placeholder="Millicent"
+                  placeholder="e.g. Adelaide"
                 />
               </Field>
               <Field label="Postcode">
                 <Input
                   value={cfg.orgPostcode}
                   onChange={(e) => set("orgPostcode")(e.target.value)}
-                  placeholder="5280"
+                  placeholder="e.g. 5000"
                   className="font-mono"
                 />
               </Field>

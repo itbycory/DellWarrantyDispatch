@@ -144,12 +144,12 @@ Built-in defaults
   "severity": "NORMAL",
   "contactFirstName": "Jane",
   "contactLastName": "Smith",
-  "contactEmail": "jane@schools.sa.edu.au",
-  "contactPhone": "0887330000",
-  "addressLine1": "2 Example Road",
+  "contactEmail": "it@yourorg.com",
+  "contactPhone": "0800000000",
+  "addressLine1": "1 Example Street",
   "addressLine2": "",
-  "city": "Millicent",
-  "postcode": "5280",
+  "city": "Adelaide",
+  "postcode": "5000",
   "country": "AU",
   "preferredContactTime": "Weekdays 9am-5pm"
 }
