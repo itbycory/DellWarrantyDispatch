@@ -157,6 +157,13 @@ export interface DispatchResponse {
   raw?: unknown
 }
 
+export interface CaseStatus {
+  caseNumber: string
+  status: string | null
+  statusDetail: string | null
+  raw: unknown
+}
+
 export async function submitDispatch(
   request: DispatchRequest,
   clientId: string,
@@ -230,4 +237,47 @@ export async function submitDispatch(
     message: "Dispatch request submitted successfully",
     raw: responseData,
   }
+}
+
+/**
+ * Fetches the current status of a submitted dispatch case.
+ * Uses GET {dellDispatchUrl}/{caseNumber} — standard REST pattern
+ * for the same base URL as the dispatch submission endpoint.
+ */
+export async function getCaseStatus(
+  caseNumber: string,
+  clientId: string,
+  clientSecret: string
+): Promise<CaseStatus> {
+  const token = await getDellAccessToken(clientId, clientSecret)
+  const url = `${getConfig().dellDispatchUrl}/${encodeURIComponent(caseNumber)}`
+
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Dell case status API failed (${res.status}): ${text}`)
+  }
+
+  const data = (await res.json()) as Record<string, unknown>
+
+  // Try common field names — Dell API response shape may vary
+  const status =
+    (data?.caseStatus as string) ??
+    (data?.status as string) ??
+    (data?.dispatchStatus as string) ??
+    null
+
+  const statusDetail =
+    (data?.statusDescription as string) ??
+    (data?.description as string) ??
+    (data?.notes as string) ??
+    null
+
+  return { caseNumber, status, statusDetail, raw: data }
 }

@@ -1,6 +1,6 @@
 # Dell Warranty Dispatch
 
-A web app for IT teams to look up Dell device warranty status and submit **onsite warranty service dispatch jobs** directly to Dell — all from a clean, step-by-step interface.
+A web app for IT teams to look up Dell device warranty status, submit **onsite warranty service dispatch jobs** directly to Dell, and track the status of open cases — all from a clean, step-by-step interface.
 
 Built with Next.js 15, TypeScript, and Tailwind CSS. Runs locally or in Docker. No config files required — everything is set up through the web UI on first run.
 
@@ -12,6 +12,7 @@ Built with Next.js 15, TypeScript, and Tailwind CSS. Runs locally or in Docker. 
 - **Settings page** — update credentials, org details, and API endpoints at any time from the browser
 - **Warranty lookup** — enter a Dell service tag to instantly check warranty status, expiry date, days remaining, and service level
 - **Dispatch submission** — fill in the issue description, contact details, and site address, then submit an onsite service request to Dell via the TechDirect API
+- **Case tracking** — every submitted dispatch is saved locally; open the Cases view to see all jobs and refresh their live status from Dell
 - **Org pre-fill** — org contact and address details pre-fill every dispatch form automatically once configured
 - **Warranty warnings** — highlighted alerts when a device is out of warranty or expiring within 90 days
 - **Docker ready** — single `docker compose up -d --build` deployment, no `.env` file needed
@@ -37,6 +38,9 @@ Describe the fault, set severity, confirm contact details and the onsite address
 
 ### Step 4 — Confirmation
 Case number returned from Dell once the dispatch is submitted.
+
+### Cases View
+All submitted dispatch jobs listed with live status. Click any case to expand full details and refresh the status directly from the Dell API.
 
 ---
 
@@ -131,6 +135,9 @@ Built-in defaults
 |---|---|---|
 | `GET` | `/api/warranty?serviceTag=ABC1234` | Look up warranty for a service tag |
 | `POST` | `/api/dispatch` | Submit an onsite dispatch job to Dell |
+| `GET` | `/api/cases` | List all locally saved dispatch cases |
+| `GET` | `/api/cases/:caseNumber` | Get a single saved case |
+| `POST` | `/api/cases/:caseNumber` | Refresh case status from the Dell API |
 | `GET` | `/api/config` | Returns current config status (credentials never exposed) |
 | `POST` | `/api/config` | Save settings (used by the Settings page) |
 | `POST` | `/api/test-connection` | Test Dell OAuth credentials |
@@ -163,19 +170,24 @@ Built-in defaults
 ├── app/
 │   ├── api/
 │   │   ├── warranty/route.ts        # Warranty lookup endpoint
-│   │   ├── dispatch/route.ts        # Dispatch submission endpoint
+│   │   ├── dispatch/route.ts        # Dispatch submission + case save
+│   │   ├── cases/route.ts           # List saved cases
+│   │   ├── cases/[id]/route.ts      # Case detail + status refresh
 │   │   ├── config/route.ts          # Config read/write endpoint
 │   │   └── test-connection/route.ts # Dell OAuth credential test
+│   ├── cases/
+│   │   └── page.tsx                 # Dispatch cases tracker
 │   ├── settings/
 │   │   └── page.tsx                 # Settings page
 │   ├── layout.tsx
 │   ├── globals.css
 │   └── page.tsx                     # Main UI — 4-step workflow
 ├── lib/
+│   ├── cases.ts                     # Case persistence (data/cases.json)
 │   ├── config.ts                    # Config read/write (data/config.json + env fallback)
-│   ├── dell-api.ts                  # Dell API client (OAuth2, warranty, dispatch)
+│   ├── dell-api.ts                  # Dell API client (OAuth2, warranty, dispatch, case status)
 │   └── utils.ts
-├── data/                            # Persisted config (Docker volume mount)
+├── data/                            # Persisted config and cases (Docker volume mount)
 │   └── .gitkeep
 ├── .env.example                     # Optional environment variable template
 ├── docker-compose.yml
@@ -191,6 +203,7 @@ Authentication uses **OAuth2 client credentials flow**. Tokens are cached in-pro
 
 - The **warranty API** is available to all TechDirect API subscribers
 - The **dispatch API** requires additional permissions — if you receive a `403`, contact Dell at `APIs_TechDirect@Dell.com` to request dispatch API access on your TechDirect account
+- The **case status API** uses `GET {dispatch-url}/{caseNumber}` — the same base URL as dispatch submission. This follows Dell's standard REST pattern; confirm the exact endpoint in your TechDirect API documentation if needed.
 
 ---
 

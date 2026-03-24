@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { submitDispatch, type DispatchRequest } from "@/lib/dell-api"
 import { getConfig, isConfigured } from "@/lib/config"
+import { saveCase } from "@/lib/cases"
 
 export async function POST(request: NextRequest) {
   if (!isConfigured()) {
@@ -47,6 +48,35 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await submitDispatch(body, dellClientId, dellClientSecret)
+
+    // Persist the case locally so it appears in the Cases tracker
+    if (result.caseNumber) {
+      const site = [
+        body.addressLine1,
+        body.addressLine2,
+        body.city,
+        body.postcode,
+        body.country,
+      ]
+        .filter(Boolean)
+        .join(", ")
+
+      saveCase({
+        caseNumber: result.caseNumber,
+        serviceTag: body.serviceTag.toUpperCase(),
+        productName: "",  // not available at dispatch time; shown from warranty lookup
+        issueDescription: body.issueDescription,
+        severity: body.severity,
+        submittedAt: new Date().toISOString(),
+        contact: `${body.contactFirstName} ${body.contactLastName}`.trim(),
+        contactEmail: body.contactEmail,
+        site,
+        status: null,
+        statusDetail: null,
+        lastStatusCheck: null,
+      })
+    }
+
     return NextResponse.json(result)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

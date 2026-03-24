@@ -15,10 +15,10 @@ import {
   User,
   Phone,
   Settings,
-  Mail,
   FileText,
   ChevronRight,
   Loader2,
+  Briefcase,
 } from "lucide-react"
 import { cn, formatDate, daysUntil } from "@/lib/utils"
 
@@ -455,6 +455,13 @@ export default function Home() {
               <AlertTriangle className="w-3 h-3" /> Setup required
             </Badge>
           )}
+          <button
+            onClick={() => router.push("/cases")}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            title="Dispatch Cases"
+          >
+            <Briefcase className="w-5 h-5" />
+          </button>
           <button
             onClick={() => router.push("/settings")}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors"
