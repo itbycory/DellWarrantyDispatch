@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { submitDispatch, type DispatchRequest } from "@/lib/dell-api"
+import { getConfig, isConfigured } from "@/lib/config"
 
 export async function POST(request: NextRequest) {
-  const clientId = process.env.DELL_CLIENT_ID
-  const clientSecret = process.env.DELL_CLIENT_SECRET
-
-  if (!clientId || !clientSecret) {
+  if (!isConfigured()) {
     return NextResponse.json(
       {
         error:
-          "Dell API credentials not configured. Set DELL_CLIENT_ID and DELL_CLIENT_SECRET in your .env.local file.",
+          "Dell API credentials are not configured. Go to Settings to add your Client ID and Secret.",
       },
       { status: 503 }
     )
@@ -45,8 +43,10 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const { dellClientId, dellClientSecret } = getConfig()
+
   try {
-    const result = await submitDispatch(body, clientId, clientSecret)
+    const result = await submitDispatch(body, dellClientId, dellClientSecret)
     return NextResponse.json(result)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

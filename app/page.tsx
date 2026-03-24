@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import {
   Search,
   CheckCircle,
@@ -13,6 +14,7 @@ import {
   MapPin,
   User,
   Phone,
+  Settings,
   Mail,
   FileText,
   ChevronRight,
@@ -265,8 +267,10 @@ function StepIndicator({ current }: { current: Step }) {
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const router = useRouter()
   const [step, setStep] = useState<Step>("lookup")
   const [orgConfig, setOrgConfig] = useState<OrgConfig | null>(null)
+  const [configured, setConfigured] = useState<boolean | null>(null)
 
   // Lookup state
   const [serviceTagInput, setServiceTagInput] = useState("")
@@ -292,12 +296,13 @@ export default function Home() {
   const [dispatchError, setDispatchError] = useState("")
   const [caseNumber, setCaseNumber] = useState("")
 
-  // Load org config and pre-fill dispatch form
+  // Load org config, check if configured, and pre-fill dispatch form
   useEffect(() => {
     fetch("/api/config")
       .then((r) => r.json())
       .then((cfg: OrgConfig) => {
         setOrgConfig(cfg)
+        setConfigured(cfg.configured ?? false)
         if (cfg.orgContactName) {
           const parts = cfg.orgContactName.split(" ")
           setContactFirstName(parts[0] ?? "")
@@ -436,7 +441,7 @@ export default function Home() {
       <header className="bg-[#003B5C] text-white px-6 py-4 shadow-md">
         <div className="max-w-3xl mx-auto flex items-center gap-3">
           <ShieldCheck className="w-7 h-7 text-[#007DB8]" />
-          <div>
+          <div className="flex-1">
             <h1 className="text-lg font-bold leading-tight">
               Dell Warranty Dispatch
             </h1>
@@ -445,15 +450,42 @@ export default function Home() {
               {orgConfig?.orgName && ` · ${orgConfig.orgName}`}
             </p>
           </div>
-          {orgConfig && !orgConfig.configured && (
+          {configured === false && (
             <Badge variant="warning">
-              <AlertTriangle className="w-3 h-3" /> Credentials not set
+              <AlertTriangle className="w-3 h-3" /> Setup required
             </Badge>
           )}
+          <button
+            onClick={() => router.push("/settings")}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            title="Settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8">
+        {/* ── First-run setup prompt ───────────────────────────────────────── */}
+        {configured === false && (
+          <div className="mb-6 p-5 rounded-xl bg-[#003B5C] text-white flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <ShieldCheck className="w-8 h-8 text-[#007DB8] shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold">Welcome — finish setting up</p>
+              <p className="text-sm text-slate-300 mt-0.5">
+                Add your Dell TechDirect Client ID and Secret to start looking
+                up warranties and submitting dispatch jobs.
+              </p>
+            </div>
+            <button
+              onClick={() => router.push("/settings")}
+              className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#007DB8] hover:bg-[#006aa0] text-white text-sm font-medium transition-colors"
+            >
+              <Settings className="w-4 h-4" /> Go to Settings
+            </button>
+          </div>
+        )}
+
         <StepIndicator current={step} />
 
         {/* ── Step 1: Lookup ─────────────────────────────────────────────── */}
@@ -467,23 +499,18 @@ export default function Home() {
               a dispatch job.
             </p>
 
-            {orgConfig && !orgConfig.configured && (
+            {configured === false && (
               <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 flex gap-2">
                 <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>
-                  Dell API credentials are not configured. Add{" "}
-                  <code className="font-mono bg-amber-100 px-1 rounded">
-                    DELL_CLIENT_ID
-                  </code>{" "}
-                  and{" "}
-                  <code className="font-mono bg-amber-100 px-1 rounded">
-                    DELL_CLIENT_SECRET
-                  </code>{" "}
-                  to your{" "}
-                  <code className="font-mono bg-amber-100 px-1 rounded">
-                    .env.local
-                  </code>{" "}
-                  file.
+                  Dell API credentials are not configured.{" "}
+                  <button
+                    onClick={() => router.push("/settings")}
+                    className="font-semibold underline hover:no-underline"
+                  >
+                    Go to Settings
+                  </button>{" "}
+                  to add them.
                 </span>
               </div>
             )}

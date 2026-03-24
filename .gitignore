@@ -32,6 +32,9 @@ Thumbs.db
 # Claude Code
 .claude/
 
+# GUI-saved config (contains credentials — never commit)
+data/config.json
+
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts

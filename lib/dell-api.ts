@@ -2,22 +2,19 @@
  * Dell TechDirect API client
  * Handles OAuth2 token management and API calls.
  * Docs: https://techdirect.dell.com/portal/AboutAPIs.aspx
+ *
+ * URLs are read from getConfig() at call time so GUI-saved settings
+ * take effect immediately without a server restart.
  */
-
-const TOKEN_URL =
-  process.env.DELL_TOKEN_URL ??
-  "https://apigtwb2c.us.dell.com/auth/oauth/v2/token"
-
-const WARRANTY_URL =
-  process.env.DELL_WARRANTY_URL ??
-  "https://apigtwb2c.us.dell.com/PROD/sbil/eapi/v5/asset-entitlements"
-
-const DISPATCH_URL =
-  process.env.DELL_DISPATCH_URL ??
-  "https://apigtwb2c.us.dell.com/PROD/support/cases/v2/dispatch"
+import { getConfig } from "@/lib/config"
 
 // Simple in-process token cache
 let cachedToken: { token: string; expiresAt: number } | null = null
+
+/** Call this when credentials change so the old token isn't reused */
+export function clearTokenCache(): void {
+  cachedToken = null
+}
 
 export async function getDellAccessToken(
   clientId: string,
@@ -32,7 +29,7 @@ export async function getDellAccessToken(
     "base64"
   )
 
-  const res = await fetch(TOKEN_URL, {
+  const res = await fetch(getConfig().dellTokenUrl, {
     method: "POST",
     headers: {
       Authorization: `Basic ${credentials}`,
@@ -84,7 +81,7 @@ export async function lookupWarranty(
 ): Promise<WarrantyResult> {
   const token = await getDellAccessToken(clientId, clientSecret)
 
-  const url = new URL(WARRANTY_URL)
+  const url = new URL(getConfig().dellWarrantyUrl)
   url.searchParams.set("servicetags", serviceTag.toUpperCase())
 
   const res = await fetch(url.toString(), {
@@ -190,7 +187,7 @@ export async function submitDispatch(
     }),
   }
 
-  const res = await fetch(DISPATCH_URL, {
+  const res = await fetch(getConfig().dellDispatchUrl, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
