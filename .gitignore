@@ -29,6 +29,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Claude Code
+.claude/
+
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts

@@ -67,9 +67,9 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ```bash
 cp .env.example .env.local
-# Edit .env.local
+# Edit .env.local with your credentials and org details
 
-docker compose up
+docker compose up -d --build
 ```
 
 App available at [http://localhost:3000](http://localhost:3000).
@@ -103,15 +103,15 @@ Pre-fill the dispatch form for your organisation so staff don't need to re-enter
 
 | Variable | Example |
 |---|---|
-| `ORG_NAME` | `Department for Education` |
+| `ORG_NAME` | `Millicent High School` |
 | `ORG_CONTACT_NAME` | `Jane Smith` |
-| `ORG_CONTACT_EMAIL` | `jane@example.gov.uk` |
-| `ORG_CONTACT_PHONE` | `+44 7700 000000` |
-| `ORG_ADDRESS_LINE1` | `Sanctuary Buildings` |
-| `ORG_ADDRESS_LINE2` | `20 Great Smith Street` |
-| `ORG_CITY` | `London` |
-| `ORG_POSTCODE` | `SW1P 3BT` |
-| `ORG_COUNTRY` | `GB` |
+| `ORG_CONTACT_EMAIL` | `jane@schools.sa.edu.au` |
+| `ORG_CONTACT_PHONE` | `0887330000` |
+| `ORG_ADDRESS_LINE1` | `2 Example Road` |
+| `ORG_ADDRESS_LINE2` | _(optional)_ |
+| `ORG_CITY` | `Millicent` |
+| `ORG_POSTCODE` | `5280` |
+| `ORG_COUNTRY` | `AU` |
 
 ---
 
@@ -132,13 +132,13 @@ Pre-fill the dispatch form for your organisation so staff don't need to re-enter
   "severity": "NORMAL",
   "contactFirstName": "Jane",
   "contactLastName": "Smith",
-  "contactEmail": "jane@example.gov.uk",
-  "contactPhone": "+44 7700 000000",
-  "addressLine1": "Sanctuary Buildings",
-  "addressLine2": "20 Great Smith Street",
-  "city": "London",
-  "postcode": "SW1P 3BT",
-  "country": "GB",
+  "contactEmail": "jane@schools.sa.edu.au",
+  "contactPhone": "0887330000",
+  "addressLine1": "2 Example Road",
+  "addressLine2": "",
+  "city": "Millicent",
+  "postcode": "5280",
+  "country": "AU",
   "preferredContactTime": "Weekdays 9am-5pm"
 }
 ```
