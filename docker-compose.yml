@@ -6,27 +6,10 @@ services:
         required: false
       - path: .env
         required: false
-    ports:
-      - "3000:3000"
     environment:
       - NODE_ENV=production
-      # Dell TechDirect API credentials
-      - DELL_CLIENT_ID=${DELL_CLIENT_ID}
-      - DELL_CLIENT_SECRET=${DELL_CLIENT_SECRET}
-      # Optional: override default Dell API endpoints
-      - DELL_TOKEN_URL=${DELL_TOKEN_URL:-}
-      - DELL_WARRANTY_URL=${DELL_WARRANTY_URL:-}
-      - DELL_DISPATCH_URL=${DELL_DISPATCH_URL:-}
-      # Organisation defaults (pre-fill dispatch forms)
-      - ORG_NAME=${ORG_NAME:-}
-      - ORG_CONTACT_NAME=${ORG_CONTACT_NAME:-}
-      - ORG_CONTACT_EMAIL=${ORG_CONTACT_EMAIL:-}
-      - ORG_CONTACT_PHONE=${ORG_CONTACT_PHONE:-}
-      - ORG_ADDRESS_LINE1=${ORG_ADDRESS_LINE1:-}
-      - ORG_ADDRESS_LINE2=${ORG_ADDRESS_LINE2:-}
-      - ORG_CITY=${ORG_CITY:-}
-      - ORG_POSTCODE=${ORG_POSTCODE:-}
-      - ORG_COUNTRY=${ORG_COUNTRY:-GB}
+    ports:
+      - "3000:3000"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/config"]
