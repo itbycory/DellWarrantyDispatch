@@ -15,6 +15,7 @@ import {
   User,
   Phone,
   Settings,
+  Mail,
   FileText,
   ChevronRight,
   Loader2,
