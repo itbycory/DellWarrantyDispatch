@@ -1,6 +1,11 @@
 services:
   app:
     build: .
+    env_file:
+      - path: .env.local
+        required: false
+      - path: .env
+        required: false
     ports:
       - "3000:3000"
     environment:
