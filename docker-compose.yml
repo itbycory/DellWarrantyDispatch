@@ -1,11 +1,6 @@
 services:
   app:
     build: .
-    env_file:
-      - path: .env.local
-        required: false
-      - path: .env
-        required: false
     environment:
       - NODE_ENV=production
     ports:
