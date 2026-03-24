@@ -6,7 +6,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./data:/app/data
+      - config_data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/config"]
@@ -14,3 +14,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+volumes:
+  config_data:
