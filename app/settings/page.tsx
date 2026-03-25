@@ -200,6 +200,8 @@ interface ConfigState {
   tokenUrl: string
   warrantyUrl: string
   dispatchUrl: string
+  techSupportUrl: string
+  selfDispatchUrl: string
   orgName: string
   orgContactName: string
   orgContactEmail: string
@@ -218,6 +220,8 @@ const DEFAULT_URLS = {
   warrantyUrl:
     "https://apigtwb2c.us.dell.com/PROD/sbil/eapi/v5/asset-entitlements",
   dispatchUrl: "https://apigtwb2c.us.dell.com/PROD/support/cases/v2/dispatch",
+  techSupportUrl: "",
+  selfDispatchUrl: "",
 }
 
 export default function SettingsPage() {
@@ -235,7 +239,11 @@ export default function SettingsPage() {
   const [cfg, setCfg] = useState<ConfigState>({
     clientId: "",
     clientSecret: "",
-    ...DEFAULT_URLS,
+    tokenUrl: DEFAULT_URLS.tokenUrl,
+    warrantyUrl: DEFAULT_URLS.warrantyUrl,
+    dispatchUrl: DEFAULT_URLS.dispatchUrl,
+    techSupportUrl: "",
+    selfDispatchUrl: "",
     orgName: "",
     orgContactName: "",
     orgContactEmail: "",
@@ -259,6 +267,8 @@ export default function SettingsPage() {
           tokenUrl: data.dellTokenUrl || DEFAULT_URLS.tokenUrl,
           warrantyUrl: data.dellWarrantyUrl || DEFAULT_URLS.warrantyUrl,
           dispatchUrl: data.dellDispatchUrl || DEFAULT_URLS.dispatchUrl,
+          techSupportUrl: data.dellTechSupportUrl ?? "",
+          selfDispatchUrl: data.dellSelfDispatchUrl ?? "",
           orgName: data.orgName ?? "",
           orgContactName: data.orgContactName ?? "",
           orgContactEmail: data.orgContactEmail ?? "",
@@ -307,6 +317,8 @@ export default function SettingsPage() {
       dellTokenUrl: cfg.tokenUrl,
       dellWarrantyUrl: cfg.warrantyUrl,
       dellDispatchUrl: cfg.dispatchUrl,
+      dellTechSupportUrl: cfg.techSupportUrl,
+      dellSelfDispatchUrl: cfg.selfDispatchUrl,
       orgName: cfg.orgName,
       orgContactName: cfg.orgContactName,
       orgContactEmail: cfg.orgContactEmail,
@@ -546,6 +558,28 @@ export default function SettingsPage() {
                 <Input
                   value={cfg.dispatchUrl}
                   onChange={(e) => set("dispatchUrl")(e.target.value)}
+                  className="font-mono text-xs"
+                />
+              </Field>
+              <Field
+                label="Tech Support API URL"
+                hint="From your Dell SDK docs — leave blank until you receive your Technical Support Requests API key approval"
+              >
+                <Input
+                  value={cfg.techSupportUrl}
+                  onChange={(e) => set("techSupportUrl")(e.target.value)}
+                  placeholder="https://… (from Dell SDK docs)"
+                  className="font-mono text-xs"
+                />
+              </Field>
+              <Field
+                label="Self Dispatch API URL"
+                hint="From your Dell SDK docs — leave blank until you receive your Self Dispatch Support Requests API key approval"
+              >
+                <Input
+                  value={cfg.selfDispatchUrl}
+                  onChange={(e) => set("selfDispatchUrl")(e.target.value)}
+                  placeholder="https://… (from Dell SDK docs)"
                   className="font-mono text-xs"
                 />
               </Field>

@@ -6,8 +6,11 @@ const CASES_PATH =
     ? path.join(path.dirname(process.env.CONFIG_PATH), "cases.json")
     : path.join(process.cwd(), "data", "cases.json")
 
+export type CaseType = "dispatch" | "tech-support" | "self-dispatch"
+
 export interface SavedCase {
   caseNumber: string
+  type: CaseType
   serviceTag: string
   productName: string
   issueDescription: string
@@ -16,6 +19,8 @@ export interface SavedCase {
   contact: string       // "First Last"
   contactEmail: string
   site: string          // formatted address
+  /** Shown on the public repairs board — e.g. student name or "Year 10 laptop" */
+  displayName: string
   status: string | null
   statusDetail: string | null
   lastStatusCheck: string | null
@@ -41,6 +46,18 @@ export function getAllCases(): SavedCase[] {
     (a, b) =>
       new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
   )
+}
+
+export function getCasesByType(type: CaseType): SavedCase[] {
+  return getAllCases().filter((c) => (c.type ?? "dispatch") === type)
+}
+
+/** Active = not closed/resolved. Used by the public repairs board. */
+export function getActiveCases(): SavedCase[] {
+  return getAllCases().filter((c) => {
+    const s = (c.status ?? "").toLowerCase()
+    return !s.includes("closed") && !s.includes("resolved") && !s.includes("complete")
+  })
 }
 
 export function getCaseByNumber(caseNumber: string): SavedCase | null {

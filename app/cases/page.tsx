@@ -17,13 +17,19 @@ import {
   User,
   Calendar,
   Hash,
+  Headphones,
+  Package,
+  Wrench,
 } from "lucide-react"
 import { cn, formatDate } from "@/lib/utils"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type CaseType = "dispatch" | "tech-support" | "self-dispatch"
+
 interface SavedCase {
   caseNumber: string
+  type?: CaseType
   serviceTag: string
   productName: string
   issueDescription: string
@@ -32,6 +38,7 @@ interface SavedCase {
   contact: string
   contactEmail: string
   site: string
+  displayName?: string
   status: string | null
   statusDetail: string | null
   lastStatusCheck: string | null
@@ -104,6 +111,24 @@ function StatusBadge({ status }: { status: string | null }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
+const TYPE_TABS: { id: CaseType | "all"; label: string; icon: React.ReactNode }[] = [
+  { id: "all", label: "All", icon: <FileText className="w-3.5 h-3.5" /> },
+  { id: "dispatch", label: "Dispatch", icon: <Wrench className="w-3.5 h-3.5" /> },
+  { id: "tech-support", label: "Tech Support", icon: <Headphones className="w-3.5 h-3.5" /> },
+  { id: "self-dispatch", label: "Self Dispatch", icon: <Package className="w-3.5 h-3.5" /> },
+]
+
+function typeLabel(type?: CaseType): string {
+  if (type === "tech-support") return "Tech Support"
+  if (type === "self-dispatch") return "Self Dispatch"
+  return "Dispatch"
+}
+
+function refreshEndpoint(c: SavedCase): string {
+  if (c.type === "tech-support") return `/api/support/${encodeURIComponent(c.caseNumber)}`
+  return `/api/cases/${encodeURIComponent(c.caseNumber)}`
+}
+
 export default function CasesPage() {
   const router = useRouter()
   const [cases, setCases] = useState<SavedCase[]>([])
@@ -112,6 +137,7 @@ export default function CasesPage() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState<string | null>(null)
   const [refreshError, setRefreshError] = useState<Record<string, string>>({})
+  const [activeFilter, setActiveFilter] = useState<CaseType | "all">("all")
 
   const loadCases = useCallback(async () => {
     setLoading(true)
@@ -135,8 +161,9 @@ export default function CasesPage() {
   const handleRefreshStatus = async (caseNumber: string) => {
     setRefreshing(caseNumber)
     setRefreshError((prev) => ({ ...prev, [caseNumber]: "" }))
+    const c = cases.find((x) => x.caseNumber === caseNumber)
     try {
-      const res = await fetch(`/api/cases/${encodeURIComponent(caseNumber)}`, {
+      const res = await fetch(c ? refreshEndpoint(c) : `/api/cases/${encodeURIComponent(caseNumber)}`, {
         method: "POST",
       })
       const data = await res.json()
@@ -191,6 +218,36 @@ export default function CasesPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8">
+        {/* Filter tabs */}
+        {!loading && cases.length > 0 && (
+          <div className="flex gap-2 mb-5 flex-wrap">
+            {TYPE_TABS.map((tab) => {
+              const count = tab.id === "all"
+                ? cases.length
+                : cases.filter((c) => (c.type ?? "dispatch") === tab.id).length
+              if (tab.id !== "all" && count === 0) return null
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveFilter(tab.id)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+                    activeFilter === tab.id
+                      ? "bg-[#007DB8] text-white"
+                      : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                  )}
+                >
+                  {tab.icon} {tab.label}
+                  <span className={cn(
+                    "text-xs rounded-full px-1.5 py-0.5 font-bold",
+                    activeFilter === tab.id ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
+                  )}>{count}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         {loading && (
           <div className="flex justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-[#007DB8]" />
@@ -222,7 +279,9 @@ export default function CasesPage() {
 
         {!loading && cases.length > 0 && (
           <div className="space-y-3">
-            {cases.map((c) => {
+            {cases
+              .filter((c) => activeFilter === "all" || (c.type ?? "dispatch") === activeFilter)
+              .map((c) => {
               const isExpanded = expanded === c.caseNumber
               const isRefreshing = refreshing === c.caseNumber
               const err = refreshError[c.caseNumber]
@@ -261,6 +320,9 @@ export default function CasesPage() {
                         )}
                       </p>
                       <p className="text-xs text-slate-500 truncate mt-0.5">
+                        {c.displayName && (
+                          <span className="font-medium text-slate-600">{c.displayName} · </span>
+                        )}
                         {c.issueDescription}
                       </p>
                     </div>
@@ -268,6 +330,7 @@ export default function CasesPage() {
                     {/* Status + date */}
                     <div className="shrink-0 text-right flex flex-col items-end gap-1.5">
                       <StatusBadge status={c.status} />
+                      <span className="text-xs text-slate-400">{typeLabel(c.type)}</span>
                       <p className="text-xs text-slate-400">
                         {formatDate(c.submittedAt)}
                       </p>
@@ -416,3 +479,4 @@ export default function CasesPage() {
     </div>
   )
 }
+

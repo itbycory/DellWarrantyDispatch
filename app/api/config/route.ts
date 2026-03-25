@@ -14,6 +14,8 @@ export async function GET() {
     dellTokenUrl: cfg.dellTokenUrl,
     dellWarrantyUrl: cfg.dellWarrantyUrl,
     dellDispatchUrl: cfg.dellDispatchUrl,
+    dellTechSupportUrl: cfg.dellTechSupportUrl,
+    dellSelfDispatchUrl: cfg.dellSelfDispatchUrl,
     // Org details (not sensitive)
     orgName: cfg.orgName,
     orgContactName: cfg.orgContactName,

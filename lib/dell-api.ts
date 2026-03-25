@@ -239,6 +239,246 @@ export async function submitDispatch(
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Technical Support Requests API
+//
+// Dell's Technical Support API is currently SOAP-based. The SOAP envelope
+// structure below is based on standard Dell TechDirect SOAP patterns.
+// Once you receive your SDK docs, verify the namespace, SOAPAction header,
+// and element names against the provided WSDL and update accordingly.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface TechSupportRequest {
+  serviceTag: string
+  problemTitle: string
+  problemDescription: string
+  priority: "LOW" | "NORMAL" | "HIGH" | "CRITICAL"
+  contactFirstName: string
+  contactLastName: string
+  contactEmail: string
+  contactPhone: string
+}
+
+export interface TechSupportResponse {
+  success: boolean
+  caseNumber?: string
+  message: string
+  raw?: unknown
+}
+
+/** Extract the text content of a named XML element (first occurrence). */
+function extractXmlValue(xml: string, tag: string): string | null {
+  const match = xml.match(new RegExp(`<(?:[^:>]+:)?${tag}[^>]*>([^<]*)<`, "i"))
+  return match ? match[1].trim() : null
+}
+
+function buildSoapEnvelope(body: string): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+               xmlns:tns="http://dell.com/techdirect/support/v1">
+  <soap:Body>${body}</soap:Body>
+</soap:Envelope>`
+}
+
+export async function createTechSupportCase(
+  request: TechSupportRequest,
+  clientId: string,
+  clientSecret: string
+): Promise<TechSupportResponse> {
+  const token = await getDellAccessToken(clientId, clientSecret)
+  const url = getConfig().dellTechSupportUrl
+
+  if (!url) {
+    throw new Error(
+      "Technical Support API URL not configured. Add it in Settings → Advanced once you receive your Dell SDK documentation."
+    )
+  }
+
+  const soapBody = `
+    <tns:CreateSupportRequest>
+      <tns:serviceTag>${escapeXml(request.serviceTag.toUpperCase())}</tns:serviceTag>
+      <tns:problemSummary>${escapeXml(request.problemTitle)}</tns:problemSummary>
+      <tns:problemDescription>${escapeXml(request.problemDescription)}</tns:problemDescription>
+      <tns:priority>${request.priority}</tns:priority>
+      <tns:contactInfo>
+        <tns:firstName>${escapeXml(request.contactFirstName)}</tns:firstName>
+        <tns:lastName>${escapeXml(request.contactLastName)}</tns:lastName>
+        <tns:email>${escapeXml(request.contactEmail)}</tns:email>
+        <tns:phone>${escapeXml(request.contactPhone)}</tns:phone>
+      </tns:contactInfo>
+    </tns:CreateSupportRequest>`
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "text/xml; charset=utf-8",
+      SOAPAction: "createSupportRequest",
+    },
+    body: buildSoapEnvelope(soapBody),
+  })
+
+  const responseText = await res.text()
+
+  if (!res.ok) {
+    throw new Error(`Dell Tech Support API failed (${res.status}): ${responseText}`)
+  }
+
+  const caseNumber =
+    extractXmlValue(responseText, "caseNumber") ??
+    extractXmlValue(responseText, "CaseNumber") ??
+    extractXmlValue(responseText, "caseId") ??
+    undefined
+
+  return {
+    success: true,
+    caseNumber,
+    message: "Technical support case created successfully",
+    raw: responseText,
+  }
+}
+
+export async function getTechSupportCaseStatus(
+  caseNumber: string,
+  clientId: string,
+  clientSecret: string
+): Promise<CaseStatus> {
+  const token = await getDellAccessToken(clientId, clientSecret)
+  const url = getConfig().dellTechSupportUrl
+
+  if (!url) {
+    throw new Error("Technical Support API URL not configured.")
+  }
+
+  const soapBody = `
+    <tns:GetSupportRequestStatus>
+      <tns:caseNumber>${escapeXml(caseNumber)}</tns:caseNumber>
+    </tns:GetSupportRequestStatus>`
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "text/xml; charset=utf-8",
+      SOAPAction: "getSupportRequestStatus",
+    },
+    body: buildSoapEnvelope(soapBody),
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Dell Tech Support status API failed (${res.status}): ${text}`)
+  }
+
+  const xml = await res.text()
+  const status =
+    extractXmlValue(xml, "status") ??
+    extractXmlValue(xml, "caseStatus") ??
+    null
+  const statusDetail =
+    extractXmlValue(xml, "statusDescription") ??
+    extractXmlValue(xml, "notes") ??
+    null
+
+  return { caseNumber, status, statusDetail, raw: xml }
+}
+
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Self Dispatch Support Requests API
+//
+// Allows you to request replacement parts and fit them yourself (requires
+// self-dispatch training completion on TechDirect).
+// Same SOAP caveat applies — verify against your SDK WSDL when received.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SelfDispatchPartRequest {
+  serviceTag: string
+  problemDescription: string
+  partDescription: string  // describe the part needed / fault
+  contactFirstName: string
+  contactLastName: string
+  contactEmail: string
+  contactPhone: string
+  addressLine1: string
+  addressLine2?: string
+  city: string
+  postcode: string
+  country: string
+}
+
+export async function createSelfDispatchRequest(
+  request: SelfDispatchPartRequest,
+  clientId: string,
+  clientSecret: string
+): Promise<DispatchResponse> {
+  const token = await getDellAccessToken(clientId, clientSecret)
+  const url = getConfig().dellSelfDispatchUrl
+
+  if (!url) {
+    throw new Error(
+      "Self Dispatch API URL not configured. Add it in Settings → Advanced once you receive your Dell SDK documentation."
+    )
+  }
+
+  const soapBody = `
+    <tns:CreateSelfDispatchRequest>
+      <tns:serviceTag>${escapeXml(request.serviceTag.toUpperCase())}</tns:serviceTag>
+      <tns:problemDescription>${escapeXml(request.problemDescription)}</tns:problemDescription>
+      <tns:partDescription>${escapeXml(request.partDescription)}</tns:partDescription>
+      <tns:contactInfo>
+        <tns:firstName>${escapeXml(request.contactFirstName)}</tns:firstName>
+        <tns:lastName>${escapeXml(request.contactLastName)}</tns:lastName>
+        <tns:email>${escapeXml(request.contactEmail)}</tns:email>
+        <tns:phone>${escapeXml(request.contactPhone)}</tns:phone>
+      </tns:contactInfo>
+      <tns:deliveryAddress>
+        <tns:addressLine1>${escapeXml(request.addressLine1)}</tns:addressLine1>
+        <tns:addressLine2>${escapeXml(request.addressLine2 ?? "")}</tns:addressLine2>
+        <tns:city>${escapeXml(request.city)}</tns:city>
+        <tns:postCode>${escapeXml(request.postcode)}</tns:postCode>
+        <tns:countryCode>${escapeXml(request.country)}</tns:countryCode>
+      </tns:deliveryAddress>
+    </tns:CreateSelfDispatchRequest>`
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "text/xml; charset=utf-8",
+      SOAPAction: "createSelfDispatchRequest",
+    },
+    body: buildSoapEnvelope(soapBody),
+  })
+
+  const responseText = await res.text()
+
+  if (!res.ok) {
+    throw new Error(`Dell Self Dispatch API failed (${res.status}): ${responseText}`)
+  }
+
+  const caseNumber =
+    extractXmlValue(responseText, "caseNumber") ??
+    extractXmlValue(responseText, "dispatchId") ??
+    extractXmlValue(responseText, "requestId") ??
+    undefined
+
+  return {
+    success: true,
+    caseNumber,
+    message: "Self dispatch request submitted successfully",
+    raw: responseText,
+  }
+}
+
 /**
  * Fetches the current status of a submitted dispatch case.
  * Uses GET {dellDispatchUrl}/{caseNumber} — standard REST pattern

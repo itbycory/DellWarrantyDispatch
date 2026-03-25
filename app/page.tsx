@@ -20,6 +20,8 @@ import {
   ChevronRight,
   Loader2,
   Briefcase,
+  Headphones,
+  Wrench,
 } from "lucide-react"
 import { cn, formatDate, daysUntil } from "@/lib/utils"
 
@@ -457,9 +459,23 @@ export default function Home() {
             </Badge>
           )}
           <button
+            onClick={() => router.push("/support")}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            title="Log Support Request"
+          >
+            <Headphones className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => router.push("/repairs")}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            title="Student Repair Tracker"
+          >
+            <Wrench className="w-5 h-5" />
+          </button>
+          <button
             onClick={() => router.push("/cases")}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-            title="Dispatch Cases"
+            title="All Cases"
           >
             <Briefcase className="w-5 h-5" />
           </button>

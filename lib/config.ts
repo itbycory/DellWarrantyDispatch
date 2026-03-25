@@ -10,6 +10,10 @@ export interface AppConfig {
   dellTokenUrl: string
   dellWarrantyUrl: string
   dellDispatchUrl: string
+  /** Tech Support Requests API — SOAP endpoint. Update from Dell SDK docs when received. */
+  dellTechSupportUrl: string
+  /** Self Dispatch Support Requests API — SOAP endpoint. Update from Dell SDK docs when received. */
+  dellSelfDispatchUrl: string
   orgName: string
   orgContactName: string
   orgContactEmail: string
@@ -29,6 +33,9 @@ const DEFAULTS: AppConfig = {
     "https://apigtwb2c.us.dell.com/PROD/sbil/eapi/v5/asset-entitlements",
   dellDispatchUrl:
     "https://apigtwb2c.us.dell.com/PROD/support/cases/v2/dispatch",
+  // Placeholder URLs — update from Dell SDK docs once API keys are approved
+  dellTechSupportUrl: "",
+  dellSelfDispatchUrl: "",
   orgName: "",
   orgContactName: "",
   orgContactEmail: "",
@@ -76,6 +83,10 @@ export function getConfig(): AppConfig {
       f.dellWarrantyUrl || e.DELL_WARRANTY_URL || DEFAULTS.dellWarrantyUrl,
     dellDispatchUrl:
       f.dellDispatchUrl || e.DELL_DISPATCH_URL || DEFAULTS.dellDispatchUrl,
+    dellTechSupportUrl:
+      f.dellTechSupportUrl || e.DELL_TECH_SUPPORT_URL || DEFAULTS.dellTechSupportUrl,
+    dellSelfDispatchUrl:
+      f.dellSelfDispatchUrl || e.DELL_SELF_DISPATCH_URL || DEFAULTS.dellSelfDispatchUrl,
     orgName: f.orgName || e.ORG_NAME || DEFAULTS.orgName,
     orgContactName:
       f.orgContactName || e.ORG_CONTACT_NAME || DEFAULTS.orgContactName,
