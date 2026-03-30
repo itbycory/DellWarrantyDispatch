@@ -441,8 +441,8 @@ export default function SettingsPage() {
         <Card>
           <SectionTitle icon={Building2}>Organisation Details</SectionTitle>
           <p className="text-sm text-slate-500 mb-4">
-            These pre-fill the dispatch form so staff don&apos;t need to re-enter
-            them every time.
+            These pre-fill the issue logging form so staff don&apos;t need to
+            re-enter them every time.
           </p>
 
           <div className="space-y-4">
@@ -551,13 +551,6 @@ export default function SettingsPage() {
                 <Input
                   value={cfg.warrantyUrl}
                   onChange={(e) => set("warrantyUrl")(e.target.value)}
-                  className="font-mono text-xs"
-                />
-              </Field>
-              <Field label="Dispatch API URL">
-                <Input
-                  value={cfg.dispatchUrl}
-                  onChange={(e) => set("dispatchUrl")(e.target.value)}
                   className="font-mono text-xs"
                 />
               </Field>

@@ -216,7 +216,7 @@ function StepIndicator({ current }: { current: Step }) {
     { id: "lookup", label: "Service Tag" },
     { id: "warranty", label: "Warranty" },
     { id: "dispatch", label: "Log Issue" },
-    { id: "confirmation", label: "Submitted" },
+    { id: "confirmation", label: "Logged" },
   ]
 
   const stepIndex = steps.findIndex((s) => s.id === current)
@@ -353,11 +353,12 @@ export default function Home() {
     setDispatchLoading(true)
 
     try {
-      const res = await fetch("/api/dispatch", {
+      const res = await fetch("/api/cases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           serviceTag: warranty!.serviceTag,
+          productName: warranty!.productLineDescription,
           issueDescription,
           severity,
           contactFirstName,
@@ -370,13 +371,14 @@ export default function Home() {
           postcode,
           country,
           preferredContactTime: preferredContactTime || undefined,
+          displayName: "",
         }),
       })
 
       const data = await res.json()
 
       if (!res.ok) {
-        setDispatchError(data.error ?? "Failed to submit dispatch")
+        setDispatchError(data.error ?? "Failed to log issue")
         return
       }
 
@@ -446,10 +448,10 @@ export default function Home() {
           <ShieldCheck className="w-7 h-7 text-[#007DB8]" />
           <div className="flex-1">
             <h1 className="text-lg font-bold leading-tight">
-              Dell Warranty Dispatch
+              Dell Warranty Manager
             </h1>
             <p className="text-xs text-slate-300">
-              Log and submit onsite warranty service jobs
+              Look up warranties and log repair cases
               {orgConfig?.orgName && ` · ${orgConfig.orgName}`}
             </p>
           </div>
@@ -498,7 +500,7 @@ export default function Home() {
               <p className="font-semibold">Welcome — finish setting up</p>
               <p className="text-sm text-slate-300 mt-0.5">
                 Add your Dell TechDirect Client ID and Secret to start looking
-                up warranties and submitting dispatch jobs.
+                up warranties and logging repair cases.
               </p>
             </div>
             <button
@@ -519,8 +521,8 @@ export default function Home() {
               Look up a device
             </h2>
             <p className="text-sm text-slate-500 mb-6">
-              Enter the Dell service tag to check warranty status before raising
-              a dispatch job.
+              Enter the Dell service tag to check warranty status before logging
+              a repair case.
             </p>
 
             {configured === false && (
@@ -679,8 +681,8 @@ export default function Home() {
               <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700 flex gap-2">
                 <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>
-                  This device is out of warranty. Dell may not accept a dispatch
-                  request. You can still submit — Dell will advise on options.
+                  This device is out of warranty. Note this in your issue description
+                  — Dell may not cover the repair under warranty.
                 </span>
               </div>
             )}
@@ -693,8 +695,7 @@ export default function Home() {
                   <span>
                     Warranty expires in{" "}
                     <strong>{warrantyDays} days</strong> (
-                    {formatDate(warranty.warrantyEnd!)}). Raise the dispatch job
-                    soon.
+                    {formatDate(warranty.warrantyEnd!)}). Log any issues soon.
                   </span>
                 </div>
               )}
@@ -704,7 +705,7 @@ export default function Home() {
                 <RotateCcw className="w-4 h-4" /> New Lookup
               </Button>
               <Button onClick={() => setStep("dispatch")}>
-                Log an Issue <ChevronRight className="w-4 h-4" />
+                Log a Case <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
           </div>
@@ -738,7 +739,7 @@ export default function Home() {
                 <Field label="Issue Description" required>
                   <Textarea
                     rows={5}
-                    placeholder="Describe the problem in detail — what fault are you seeing, when did it start, what troubleshooting has been done? (minimum 20 characters)"
+                    placeholder="Describe the problem in detail — what fault are you seeing, when did it start, what has been tried? (minimum 20 characters)"
                     value={issueDescription}
                     onChange={(e) => setIssueDescription(e.target.value)}
                   />
@@ -900,7 +901,7 @@ export default function Home() {
                 disabled={!dispatchFormValid}
               >
                 <Send className="w-4 h-4" />
-                Submit Dispatch to Dell
+                Log Issue
               </Button>
             </div>
           </div>
@@ -916,21 +917,23 @@ export default function Home() {
             </div>
 
             <h2 className="text-2xl font-bold text-slate-800 mb-2">
-              Dispatch Submitted
+              Issue Logged
             </h2>
 
             {caseNumber ? (
               <div className="mb-4">
-                <p className="text-slate-500 text-sm">Dell Case Number</p>
+                <p className="text-slate-500 text-sm">Local Reference</p>
                 <p className="text-3xl font-mono font-bold text-[#007DB8] mt-1">
                   {caseNumber}
+                </p>
+                <p className="text-xs text-slate-400 mt-2">
+                  Saved locally — visible in Cases and the Repairs board.
                 </p>
               </div>
             ) : (
               <p className="text-slate-500 text-sm mb-4">
-                Your request has been submitted to Dell. A case number will be
-                emailed to{" "}
-                <span className="font-medium text-slate-700">{contactEmail}</span>.
+                Your issue has been logged locally and is now visible in the
+                Cases tracker.
               </p>
             )}
 
@@ -958,7 +961,7 @@ export default function Home() {
             </div>
 
             <Button onClick={reset}>
-              <RotateCcw className="w-4 h-4" /> New Dispatch Job
+              <RotateCcw className="w-4 h-4" /> New Lookup
             </Button>
           </Card>
         )}
