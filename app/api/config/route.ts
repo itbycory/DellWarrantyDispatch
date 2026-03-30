@@ -1,21 +1,28 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getConfig, writeConfig, isConfigured } from "@/lib/config"
-import { clearTokenCache } from "@/lib/dell-api"
+import { getConfig, writeConfig, isConfigured, isSandboxConfigured } from "@/lib/config"
+import { clearTokenCache, clearSandboxTokenCache } from "@/lib/dell-api"
 
 export async function GET() {
   const cfg = getConfig()
 
   return NextResponse.json({
     configured: isConfigured(),
-    // Credentials: indicate whether set but never expose the values
+    sandboxConfigured: isSandboxConfigured(),
+    // Production credentials: indicate whether set but never expose values
     dellClientIdSet: !!cfg.dellClientId,
     dellClientSecretSet: !!cfg.dellClientSecret,
-    // Endpoints
+    // Sandbox credentials: indicate whether set but never expose values
+    dellSandboxClientIdSet: !!cfg.dellSandboxClientId,
+    dellSandboxClientSecretSet: !!cfg.dellSandboxClientSecret,
+    // Production endpoints
     dellTokenUrl: cfg.dellTokenUrl,
     dellWarrantyUrl: cfg.dellWarrantyUrl,
     dellDispatchUrl: cfg.dellDispatchUrl,
+    // Sandbox endpoints
+    dellSandboxTokenUrl: cfg.dellSandboxTokenUrl,
     dellTechSupportUrl: cfg.dellTechSupportUrl,
     dellSelfDispatchUrl: cfg.dellSelfDispatchUrl,
+    dellGetCaseLiteUrl: cfg.dellGetCaseLiteUrl,
     // Org details (not sensitive)
     orgName: cfg.orgName,
     orgContactName: cfg.orgContactName,
@@ -33,8 +40,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     writeConfig(body)
-    // Clear the cached OAuth token so it's re-fetched with new credentials
+    // Clear both token caches so new credentials take effect immediately
     clearTokenCache()
+    clearSandboxTokenCache()
     return NextResponse.json({ success: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

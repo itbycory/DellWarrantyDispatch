@@ -5,15 +5,22 @@ const CONFIG_PATH =
   process.env.CONFIG_PATH ?? path.join(process.cwd(), "data", "config.json")
 
 export interface AppConfig {
+  // Production credentials — used for Warranty API (apigtwb2c.us.dell.com)
   dellClientId: string
   dellClientSecret: string
   dellTokenUrl: string
   dellWarrantyUrl: string
   dellDispatchUrl: string
-  /** Tech Support Requests API — SOAP endpoint. Update from Dell SDK docs when received. */
+  // Sandbox credentials — used for Tech Support & Self-Dispatch APIs (apigtwb2cnp.us.dell.com)
+  dellSandboxClientId: string
+  dellSandboxClientSecret: string
+  dellSandboxTokenUrl: string
+  /** Tech Support Requests REST API endpoint */
   dellTechSupportUrl: string
-  /** Self Dispatch Support Requests API — SOAP endpoint. Update from Dell SDK docs when received. */
+  /** Self-Dispatch REST API endpoint */
   dellSelfDispatchUrl: string
+  /** GetCaseLite REST API endpoint — for polling case status */
+  dellGetCaseLiteUrl: string
   orgName: string
   orgContactName: string
   orgContactEmail: string
@@ -26,6 +33,7 @@ export interface AppConfig {
 }
 
 const DEFAULTS: AppConfig = {
+  // Production (warranty)
   dellClientId: "",
   dellClientSecret: "",
   dellTokenUrl: "https://apigtwb2c.us.dell.com/auth/oauth/v2/token",
@@ -33,9 +41,14 @@ const DEFAULTS: AppConfig = {
     "https://apigtwb2c.us.dell.com/PROD/sbil/eapi/v5/asset-entitlements",
   dellDispatchUrl:
     "https://apigtwb2c.us.dell.com/PROD/support/cases/v2/dispatch",
-  // Placeholder URLs — update from Dell SDK docs once API keys are approved
-  dellTechSupportUrl: "",
-  dellSelfDispatchUrl: "",
+  // Sandbox (Tech Support & Self-Dispatch)
+  dellSandboxClientId: "",
+  dellSandboxClientSecret: "",
+  dellSandboxTokenUrl: "https://apigtwb2cnp.us.dell.com/auth/oauth/v2/token",
+  dellTechSupportUrl: "https://apigtwb2cnp.us.dell.com/td/sandbox/webcase",
+  dellSelfDispatchUrl:
+    "https://apigtwb2cnp.us.dell.com/td/sandbox/dispatch/services/selfdispatch",
+  dellGetCaseLiteUrl: "https://apigtwb2cnp.us.dell.com/td/sandbox/getcaselite",
   orgName: "",
   orgContactName: "",
   orgContactEmail: "",
@@ -74,6 +87,7 @@ export function getConfig(): AppConfig {
   const e = process.env
 
   return {
+    // Production
     dellClientId: f.dellClientId || e.DELL_CLIENT_ID || DEFAULTS.dellClientId,
     dellClientSecret:
       f.dellClientSecret || e.DELL_CLIENT_SECRET || DEFAULTS.dellClientSecret,
@@ -83,10 +97,20 @@ export function getConfig(): AppConfig {
       f.dellWarrantyUrl || e.DELL_WARRANTY_URL || DEFAULTS.dellWarrantyUrl,
     dellDispatchUrl:
       f.dellDispatchUrl || e.DELL_DISPATCH_URL || DEFAULTS.dellDispatchUrl,
+    // Sandbox
+    dellSandboxClientId:
+      f.dellSandboxClientId || e.DELL_SANDBOX_CLIENT_ID || DEFAULTS.dellSandboxClientId,
+    dellSandboxClientSecret:
+      f.dellSandboxClientSecret || e.DELL_SANDBOX_CLIENT_SECRET || DEFAULTS.dellSandboxClientSecret,
+    dellSandboxTokenUrl:
+      f.dellSandboxTokenUrl || e.DELL_SANDBOX_TOKEN_URL || DEFAULTS.dellSandboxTokenUrl,
     dellTechSupportUrl:
       f.dellTechSupportUrl || e.DELL_TECH_SUPPORT_URL || DEFAULTS.dellTechSupportUrl,
     dellSelfDispatchUrl:
       f.dellSelfDispatchUrl || e.DELL_SELF_DISPATCH_URL || DEFAULTS.dellSelfDispatchUrl,
+    dellGetCaseLiteUrl:
+      f.dellGetCaseLiteUrl || e.DELL_GET_CASE_LITE_URL || DEFAULTS.dellGetCaseLiteUrl,
+    // Org
     orgName: f.orgName || e.ORG_NAME || DEFAULTS.orgName,
     orgContactName:
       f.orgContactName || e.ORG_CONTACT_NAME || DEFAULTS.orgContactName,
@@ -104,7 +128,14 @@ export function getConfig(): AppConfig {
   }
 }
 
+/** True when production (warranty) credentials are configured */
 export function isConfigured(): boolean {
   const cfg = getConfig()
   return !!(cfg.dellClientId && cfg.dellClientSecret)
+}
+
+/** True when sandbox (Tech Support / Self-Dispatch) credentials are configured */
+export function isSandboxConfigured(): boolean {
+  const cfg = getConfig()
+  return !!(cfg.dellSandboxClientId && cfg.dellSandboxClientSecret)
 }

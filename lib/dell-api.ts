@@ -3,31 +3,42 @@
  * Handles OAuth2 token management and API calls.
  * Docs: https://techdirect.dell.com/portal/AboutAPIs.aspx
  *
+ * Two environments:
+ *   Production  (apigtwb2c.us.dell.com)   — Warranty lookup
+ *   Sandbox     (apigtwb2cnp.us.dell.com)  — Tech Support, Self-Dispatch, GetCaseLite
+ *
  * URLs are read from getConfig() at call time so GUI-saved settings
  * take effect immediately without a server restart.
  */
 import { getConfig } from "@/lib/config"
 
-// Simple in-process token cache
-let cachedToken: { token: string; expiresAt: number } | null = null
+// ─────────────────────────────────────────────────────────────────────────────
+// Token caches
+// ─────────────────────────────────────────────────────────────────────────────
 
-/** Call this when credentials change so the old token isn't reused */
+let cachedToken: { token: string; expiresAt: number } | null = null
+let sandboxCachedToken: { token: string; expiresAt: number } | null = null
+
+/** Clear production token (call when production credentials change) */
 export function clearTokenCache(): void {
   cachedToken = null
 }
 
+/** Clear sandbox token (call when sandbox credentials change) */
+export function clearSandboxTokenCache(): void {
+  sandboxCachedToken = null
+}
+
+/** Obtain a production OAuth2 token (used for Warranty API) */
 export async function getDellAccessToken(
   clientId: string,
   clientSecret: string
 ): Promise<string> {
-  // Return cached token if still valid (with 60s buffer)
   if (cachedToken && Date.now() < cachedToken.expiresAt - 60_000) {
     return cachedToken.token
   }
 
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString(
-    "base64"
-  )
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64")
 
   const res = await fetch(getConfig().dellTokenUrl, {
     method: "POST",
@@ -51,6 +62,94 @@ export async function getDellAccessToken(
 
   return cachedToken.token
 }
+
+/** Obtain a sandbox OAuth2 token (used for Tech Support, Self-Dispatch, GetCaseLite) */
+export async function getSandboxAccessToken(
+  clientId: string,
+  clientSecret: string
+): Promise<string> {
+  if (sandboxCachedToken && Date.now() < sandboxCachedToken.expiresAt - 60_000) {
+    return sandboxCachedToken.token
+  }
+
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64")
+  const tokenUrl =
+    getConfig().dellSandboxTokenUrl ||
+    "https://apigtwb2cnp.us.dell.com/auth/oauth/v2/token"
+
+  const res = await fetch(tokenUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${credentials}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: "grant_type=client_credentials",
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Dell sandbox OAuth failed (${res.status}): ${text}`)
+  }
+
+  const data = await res.json()
+  sandboxCachedToken = {
+    token: data.access_token,
+    expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000,
+  }
+
+  return sandboxCachedToken.token
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Country helpers (Dell sandbox uses numeric ISO-3166 codes)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const COUNTRY_NUMERIC_ISO: Record<string, string> = {
+  AU: "036",
+  US: "840",
+  GB: "826",
+  DE: "276",
+  FR: "250",
+  NZ: "554",
+  CA: "124",
+  SG: "702",
+  IN: "356",
+}
+
+function countryToNumericIso(code: string): string {
+  return COUNTRY_NUMERIC_ISO[code.toUpperCase()] ?? "036"
+}
+
+const COUNTRY_TIMEZONE: Record<string, string> = {
+  AU: "AUS Eastern Standard Time",
+  US: "Eastern Standard Time",
+  GB: "GMT Standard Time",
+  DE: "W. Europe Standard Time",
+  FR: "Romance Standard Time",
+  NZ: "New Zealand Standard Time",
+  CA: "Eastern Standard Time",
+  SG: "Singapore Standard Time",
+  IN: "India Standard Time",
+}
+
+function countryToTimezone(code: string): string {
+  return COUNTRY_TIMEZONE[code.toUpperCase()] ?? "UTC"
+}
+
+const PRIORITY_TO_SEVERITY: Record<string, string> = {
+  LOW: "5",
+  NORMAL: "4",
+  HIGH: "2",
+  CRITICAL: "1",
+}
+
+function priorityToSeverity(priority: string): string {
+  return PRIORITY_TO_SEVERITY[priority.toUpperCase()] ?? "4"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Warranty API (Production)
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface WarrantyEntitlement {
   itemNumber: string
@@ -98,7 +197,6 @@ export async function lookupWarranty(
 
   const data = await res.json()
 
-  // API returns an array; pick the first matching entry
   const asset = Array.isArray(data) ? data[0] : data
 
   if (!asset) {
@@ -108,7 +206,6 @@ export async function lookupWarranty(
   const entitlements: WarrantyEntitlement[] = asset.entitlements ?? []
   const now = new Date()
 
-  // Find the entitlement with the latest end date that is still active
   const activeEntitlements = entitlements.filter(
     (e) => new Date(e.endDate) >= now
   )
@@ -133,6 +230,10 @@ export async function lookupWarranty(
     bestServiceLevel: bestEntitlement?.serviceLevelDescription ?? null,
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared types
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface DispatchRequest {
   serviceTag: string
@@ -163,6 +264,298 @@ export interface CaseStatus {
   statusDetail: string | null
   raw: unknown
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Technical Support Requests API — WebCase REST (Sandbox)
+// POST https://apigtwb2cnp.us.dell.com/td/sandbox/webcase
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface TechSupportRequest {
+  serviceTag: string
+  problemTitle: string
+  problemDescription: string
+  priority: "LOW" | "NORMAL" | "HIGH" | "CRITICAL"
+  contactFirstName: string
+  contactLastName: string
+  contactEmail: string
+  contactPhone: string
+  /** Optional — used to populate the device model field */
+  productName?: string
+}
+
+export interface TechSupportResponse {
+  success: boolean
+  caseNumber?: string
+  message: string
+  raw?: unknown
+}
+
+export async function createTechSupportCase(
+  request: TechSupportRequest,
+  clientId: string,
+  clientSecret: string
+): Promise<TechSupportResponse> {
+  const token = await getSandboxAccessToken(clientId, clientSecret)
+  const config = getConfig()
+  const url = config.dellTechSupportUrl
+
+  if (!url) {
+    throw new Error("Technical Support API URL not configured.")
+  }
+
+  const uid = Date.now().toString()
+  const now = new Date().toISOString().slice(0, 19) // "YYYY-MM-DDTHH:mm:ss"
+  const severity = priorityToSeverity(request.priority)
+  const countryIso = countryToNumericIso(config.orgCountry || "AU")
+  const timezone = countryToTimezone(config.orgCountry || "AU")
+
+  const payload = {
+    trapId: `WEB-${uid}`,
+    eventId: `WEB-${uid}`,
+    eventSource: "MANUAL_ENTRY",
+    timestamp: now,
+    caseSeverity: severity,
+    severity: severity,
+    message: request.problemDescription,
+    client: {
+      id: `client-${uid}`,
+      type: "CUSTOMER",
+      hostname: "manual",
+      ipAddress: "0.0.0.0",
+      companyName: config.orgName || "Organisation",
+      emailOptIn: false,
+      countryCodeISO: countryIso,
+      primaryContact: {
+        firstName: request.contactFirstName,
+        lastName: request.contactLastName,
+        country: config.orgCountry || "AU",
+        timeZone: timezone,
+        phoneNumber: request.contactPhone,
+        emailAddress: request.contactEmail,
+        preferredContactMethod: "EMAIL",
+        preferredContactTimeframe: "ANYTIME",
+        preferredLanguage: "EN",
+      },
+    },
+    shippingContact: {
+      firstName: request.contactFirstName,
+      lastName: request.contactLastName,
+      emailAddress: request.contactEmail,
+      phoneNumber: request.contactPhone,
+      city: config.orgCity || "",
+      state: "",
+      country: config.orgCountry || "AU",
+      zip: config.orgPostcode || "",
+      addressLine1: config.orgAddressLine1 || "",
+    },
+    device: {
+      ip: "0.0.0.0",
+      model: request.productName ?? "",
+      name: request.serviceTag.toUpperCase(),
+      serviceTag: request.serviceTag.toUpperCase(),
+      type: "LAPTOP",
+      os: "Windows",
+    },
+  }
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  })
+
+  const responseText = await res.text()
+  let responseData: unknown
+  try {
+    responseData = JSON.parse(responseText)
+  } catch {
+    responseData = responseText
+  }
+
+  if (!res.ok) {
+    throw new Error(
+      `Dell Tech Support API failed (${res.status}): ${responseText}`
+    )
+  }
+
+  const parsed = responseData as Record<string, unknown>
+  const serviceRequest = parsed?.serviceRequest as Record<string, unknown> | undefined
+  const caseNumber = (serviceRequest?.id as string) ?? undefined
+
+  return {
+    success: true,
+    caseNumber,
+    message: "Technical support case created successfully",
+    raw: responseData,
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Self-Dispatch REST API (Sandbox)
+// POST https://apigtwb2cnp.us.dell.com/td/sandbox/dispatch/services/selfdispatch
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SelfDispatchPartRequest {
+  serviceTag: string
+  problemDescription: string
+  /** Human-readable description of the issue / part needed */
+  partDescription: string
+  /** Dell part number — defaults to "OTR" (other) if not specified */
+  partNumber?: string
+  contactFirstName: string
+  contactLastName: string
+  contactEmail: string
+  contactPhone: string
+  addressLine1: string
+  addressLine2?: string
+  city: string
+  postcode: string
+  country: string
+}
+
+export async function createSelfDispatchRequest(
+  request: SelfDispatchPartRequest,
+  clientId: string,
+  clientSecret: string
+): Promise<DispatchResponse> {
+  const token = await getSandboxAccessToken(clientId, clientSecret)
+  const config = getConfig()
+  const url = config.dellSelfDispatchUrl
+
+  if (!url) {
+    throw new Error("Self-Dispatch API URL not configured.")
+  }
+
+  const country = request.country || config.orgCountry || "AU"
+  const countryIso = countryToNumericIso(country)
+  const timezone = countryToTimezone(country)
+
+  const payload = {
+    service_tag: request.serviceTag.toUpperCase(),
+    customer: config.orgName || "Organisation",
+    branch: request.addressLine1 || config.orgAddressLine1 || "",
+    track: "NEXT_DAY",
+    tech_email: request.contactEmail,
+    primary_contact_name:
+      `${request.contactFirstName} ${request.contactLastName}`.trim(),
+    primary_contact_phone: request.contactPhone,
+    primary_contact_email: request.contactEmail,
+    ship_to_address: {
+      country_iso_code: countryIso,
+      city: request.city,
+      state: "",
+      zip_postal_code: request.postcode,
+      address_line_1: request.addressLine1,
+      time_zone: timezone,
+    },
+    request_on_site_technician: true,
+    parts: [
+      {
+        part_number: request.partNumber ?? "OTR",
+        ppid: "",
+        quantity: 1,
+      },
+    ],
+    problem_description: request.problemDescription,
+    troubleshooting_note: request.partDescription || "",
+  }
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  })
+
+  const responseText = await res.text()
+  let responseData: unknown
+  try {
+    responseData = JSON.parse(responseText)
+  } catch {
+    responseData = responseText
+  }
+
+  if (!res.ok) {
+    throw new Error(
+      `Dell Self-Dispatch API failed (${res.status}): ${responseText}`
+    )
+  }
+
+  const parsed = responseData as Record<string, unknown>
+  const caseNumber = (parsed?.code as string) ?? undefined
+
+  return {
+    success: true,
+    caseNumber,
+    message: "Self-dispatch request submitted successfully",
+    raw: responseData,
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GetCaseLite — status polling (Sandbox)
+// POST https://apigtwb2cnp.us.dell.com/td/sandbox/getcaselite
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function getCaseLiteStatus(
+  caseNumber: string,
+  clientId: string,
+  clientSecret: string
+): Promise<CaseStatus> {
+  const token = await getSandboxAccessToken(clientId, clientSecret)
+  const url = getConfig().dellGetCaseLiteUrl
+
+  if (!url) {
+    throw new Error("GetCaseLite URL not configured.")
+  }
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      offset: "0",
+      page_size: "1",
+      code: caseNumber,
+      additional_fields: ["StatusDescription", "UpdateTimeLocal"],
+    }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Dell GetCaseLite API failed (${res.status}): ${text}`)
+  }
+
+  const data = (await res.json()) as Record<string, unknown>
+  const cases = (data?.cases as Record<string, unknown>[]) ?? []
+  const first = cases[0] ?? {}
+
+  const status =
+    (first?.status as string) ??
+    (first?.statusCode as string) ??
+    null
+
+  const statusDetail =
+    (first?.statusDescription as string) ??
+    (first?.updateTimeLocal as string) ??
+    null
+
+  return { caseNumber, status, statusDetail, raw: data }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legacy submitDispatch — kept for reference, not used in current flow
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function submitDispatch(
   request: DispatchRequest,
@@ -206,7 +599,6 @@ export async function submitDispatch(
 
   const responseText = await res.text()
   let responseData: unknown
-
   try {
     responseData = JSON.parse(responseText)
   } catch {
@@ -214,7 +606,6 @@ export async function submitDispatch(
   }
 
   if (!res.ok) {
-    // 403 typically means dispatch API access not enabled on your TechDirect account
     if (res.status === 403) {
       throw new Error(
         "Dispatch API access denied (403). You may need to request dispatch API permissions on your Dell TechDirect account at techdirect.dell.com"
@@ -237,287 +628,4 @@ export async function submitDispatch(
     message: "Dispatch request submitted successfully",
     raw: responseData,
   }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Technical Support Requests API
-//
-// Dell's Technical Support API is currently SOAP-based. The SOAP envelope
-// structure below is based on standard Dell TechDirect SOAP patterns.
-// Once you receive your SDK docs, verify the namespace, SOAPAction header,
-// and element names against the provided WSDL and update accordingly.
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface TechSupportRequest {
-  serviceTag: string
-  problemTitle: string
-  problemDescription: string
-  priority: "LOW" | "NORMAL" | "HIGH" | "CRITICAL"
-  contactFirstName: string
-  contactLastName: string
-  contactEmail: string
-  contactPhone: string
-}
-
-export interface TechSupportResponse {
-  success: boolean
-  caseNumber?: string
-  message: string
-  raw?: unknown
-}
-
-/** Extract the text content of a named XML element (first occurrence). */
-function extractXmlValue(xml: string, tag: string): string | null {
-  const match = xml.match(new RegExp(`<(?:[^:>]+:)?${tag}[^>]*>([^<]*)<`, "i"))
-  return match ? match[1].trim() : null
-}
-
-function buildSoapEnvelope(body: string): string {
-  return `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
-               xmlns:tns="http://dell.com/techdirect/support/v1">
-  <soap:Body>${body}</soap:Body>
-</soap:Envelope>`
-}
-
-export async function createTechSupportCase(
-  request: TechSupportRequest,
-  clientId: string,
-  clientSecret: string
-): Promise<TechSupportResponse> {
-  const token = await getDellAccessToken(clientId, clientSecret)
-  const url = getConfig().dellTechSupportUrl
-
-  if (!url) {
-    throw new Error(
-      "Technical Support API URL not configured. Add it in Settings → Advanced once you receive your Dell SDK documentation."
-    )
-  }
-
-  const soapBody = `
-    <tns:CreateSupportRequest>
-      <tns:serviceTag>${escapeXml(request.serviceTag.toUpperCase())}</tns:serviceTag>
-      <tns:problemSummary>${escapeXml(request.problemTitle)}</tns:problemSummary>
-      <tns:problemDescription>${escapeXml(request.problemDescription)}</tns:problemDescription>
-      <tns:priority>${request.priority}</tns:priority>
-      <tns:contactInfo>
-        <tns:firstName>${escapeXml(request.contactFirstName)}</tns:firstName>
-        <tns:lastName>${escapeXml(request.contactLastName)}</tns:lastName>
-        <tns:email>${escapeXml(request.contactEmail)}</tns:email>
-        <tns:phone>${escapeXml(request.contactPhone)}</tns:phone>
-      </tns:contactInfo>
-    </tns:CreateSupportRequest>`
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "text/xml; charset=utf-8",
-      SOAPAction: "createSupportRequest",
-    },
-    body: buildSoapEnvelope(soapBody),
-  })
-
-  const responseText = await res.text()
-
-  if (!res.ok) {
-    throw new Error(`Dell Tech Support API failed (${res.status}): ${responseText}`)
-  }
-
-  const caseNumber =
-    extractXmlValue(responseText, "caseNumber") ??
-    extractXmlValue(responseText, "CaseNumber") ??
-    extractXmlValue(responseText, "caseId") ??
-    undefined
-
-  return {
-    success: true,
-    caseNumber,
-    message: "Technical support case created successfully",
-    raw: responseText,
-  }
-}
-
-export async function getTechSupportCaseStatus(
-  caseNumber: string,
-  clientId: string,
-  clientSecret: string
-): Promise<CaseStatus> {
-  const token = await getDellAccessToken(clientId, clientSecret)
-  const url = getConfig().dellTechSupportUrl
-
-  if (!url) {
-    throw new Error("Technical Support API URL not configured.")
-  }
-
-  const soapBody = `
-    <tns:GetSupportRequestStatus>
-      <tns:caseNumber>${escapeXml(caseNumber)}</tns:caseNumber>
-    </tns:GetSupportRequestStatus>`
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "text/xml; charset=utf-8",
-      SOAPAction: "getSupportRequestStatus",
-    },
-    body: buildSoapEnvelope(soapBody),
-  })
-
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Dell Tech Support status API failed (${res.status}): ${text}`)
-  }
-
-  const xml = await res.text()
-  const status =
-    extractXmlValue(xml, "status") ??
-    extractXmlValue(xml, "caseStatus") ??
-    null
-  const statusDetail =
-    extractXmlValue(xml, "statusDescription") ??
-    extractXmlValue(xml, "notes") ??
-    null
-
-  return { caseNumber, status, statusDetail, raw: xml }
-}
-
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Self Dispatch Support Requests API
-//
-// Allows you to request replacement parts and fit them yourself (requires
-// self-dispatch training completion on TechDirect).
-// Same SOAP caveat applies — verify against your SDK WSDL when received.
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface SelfDispatchPartRequest {
-  serviceTag: string
-  problemDescription: string
-  partDescription: string  // describe the part needed / fault
-  contactFirstName: string
-  contactLastName: string
-  contactEmail: string
-  contactPhone: string
-  addressLine1: string
-  addressLine2?: string
-  city: string
-  postcode: string
-  country: string
-}
-
-export async function createSelfDispatchRequest(
-  request: SelfDispatchPartRequest,
-  clientId: string,
-  clientSecret: string
-): Promise<DispatchResponse> {
-  const token = await getDellAccessToken(clientId, clientSecret)
-  const url = getConfig().dellSelfDispatchUrl
-
-  if (!url) {
-    throw new Error(
-      "Self Dispatch API URL not configured. Add it in Settings → Advanced once you receive your Dell SDK documentation."
-    )
-  }
-
-  const soapBody = `
-    <tns:CreateSelfDispatchRequest>
-      <tns:serviceTag>${escapeXml(request.serviceTag.toUpperCase())}</tns:serviceTag>
-      <tns:problemDescription>${escapeXml(request.problemDescription)}</tns:problemDescription>
-      <tns:partDescription>${escapeXml(request.partDescription)}</tns:partDescription>
-      <tns:contactInfo>
-        <tns:firstName>${escapeXml(request.contactFirstName)}</tns:firstName>
-        <tns:lastName>${escapeXml(request.contactLastName)}</tns:lastName>
-        <tns:email>${escapeXml(request.contactEmail)}</tns:email>
-        <tns:phone>${escapeXml(request.contactPhone)}</tns:phone>
-      </tns:contactInfo>
-      <tns:deliveryAddress>
-        <tns:addressLine1>${escapeXml(request.addressLine1)}</tns:addressLine1>
-        <tns:addressLine2>${escapeXml(request.addressLine2 ?? "")}</tns:addressLine2>
-        <tns:city>${escapeXml(request.city)}</tns:city>
-        <tns:postCode>${escapeXml(request.postcode)}</tns:postCode>
-        <tns:countryCode>${escapeXml(request.country)}</tns:countryCode>
-      </tns:deliveryAddress>
-    </tns:CreateSelfDispatchRequest>`
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "text/xml; charset=utf-8",
-      SOAPAction: "createSelfDispatchRequest",
-    },
-    body: buildSoapEnvelope(soapBody),
-  })
-
-  const responseText = await res.text()
-
-  if (!res.ok) {
-    throw new Error(`Dell Self Dispatch API failed (${res.status}): ${responseText}`)
-  }
-
-  const caseNumber =
-    extractXmlValue(responseText, "caseNumber") ??
-    extractXmlValue(responseText, "dispatchId") ??
-    extractXmlValue(responseText, "requestId") ??
-    undefined
-
-  return {
-    success: true,
-    caseNumber,
-    message: "Self dispatch request submitted successfully",
-    raw: responseText,
-  }
-}
-
-/**
- * Fetches the current status of a submitted dispatch case.
- * Uses GET {dellDispatchUrl}/{caseNumber} — standard REST pattern
- * for the same base URL as the dispatch submission endpoint.
- */
-export async function getCaseStatus(
-  caseNumber: string,
-  clientId: string,
-  clientSecret: string
-): Promise<CaseStatus> {
-  const token = await getDellAccessToken(clientId, clientSecret)
-  const url = `${getConfig().dellDispatchUrl}/${encodeURIComponent(caseNumber)}`
-
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    },
-  })
-
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Dell case status API failed (${res.status}): ${text}`)
-  }
-
-  const data = (await res.json()) as Record<string, unknown>
-
-  // Try common field names — Dell API response shape may vary
-  const status =
-    (data?.caseStatus as string) ??
-    (data?.status as string) ??
-    (data?.dispatchStatus as string) ??
-    null
-
-  const statusDetail =
-    (data?.statusDescription as string) ??
-    (data?.description as string) ??
-    (data?.notes as string) ??
-    null
-
-  return { caseNumber, status, statusDetail, raw: data }
 }

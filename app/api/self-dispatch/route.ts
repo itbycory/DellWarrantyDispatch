@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createSelfDispatchRequest, type SelfDispatchPartRequest } from "@/lib/dell-api"
-import { getConfig, isConfigured } from "@/lib/config"
+import {
+  createSelfDispatchRequest,
+  type SelfDispatchPartRequest,
+} from "@/lib/dell-api"
+import { getConfig, isSandboxConfigured } from "@/lib/config"
 import { saveCase } from "@/lib/cases"
 
 export async function POST(request: NextRequest) {
-  if (!isConfigured()) {
+  if (!isSandboxConfigured()) {
     return NextResponse.json(
-      { error: "Dell API credentials are not configured. Go to Settings to add your Client ID and Secret." },
+      {
+        error:
+          "Sandbox API credentials are not configured. Go to Settings to add your Sandbox Client ID and Secret.",
+      },
       { status: 503 }
     )
   }
@@ -35,17 +41,30 @@ export async function POST(request: NextRequest) {
 
   for (const field of required) {
     if (!body[field]) {
-      return NextResponse.json({ error: `Missing required field: ${field}` }, { status: 400 })
+      return NextResponse.json(
+        { error: `Missing required field: ${field}` },
+        { status: 400 }
+      )
     }
   }
 
-  const { dellClientId, dellClientSecret } = getConfig()
+  const { dellSandboxClientId, dellSandboxClientSecret } = getConfig()
 
   try {
-    const result = await createSelfDispatchRequest(body, dellClientId, dellClientSecret)
+    const result = await createSelfDispatchRequest(
+      body,
+      dellSandboxClientId,
+      dellSandboxClientSecret
+    )
 
     if (result.caseNumber) {
-      const site = [body.addressLine1, body.addressLine2, body.city, body.postcode, body.country]
+      const site = [
+        body.addressLine1,
+        body.addressLine2,
+        body.city,
+        body.postcode,
+        body.country,
+      ]
         .filter(Boolean)
         .join(", ")
 

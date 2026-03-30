@@ -195,13 +195,24 @@ function SecretInput({
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 interface ConfigState {
+  // Production (warranty)
   clientId: string
   clientSecret: string
   tokenUrl: string
   warrantyUrl: string
   dispatchUrl: string
+  clientIdSet: boolean
+  clientSecretSet: boolean
+  // Sandbox (Tech Support, Self-Dispatch)
+  sandboxClientId: string
+  sandboxClientSecret: string
+  sandboxTokenUrl: string
   techSupportUrl: string
   selfDispatchUrl: string
+  getCaseLiteUrl: string
+  sandboxClientIdSet: boolean
+  sandboxClientSecretSet: boolean
+  // Org
   orgName: string
   orgContactName: string
   orgContactEmail: string
@@ -211,8 +222,6 @@ interface ConfigState {
   orgCity: string
   orgPostcode: string
   orgCountry: string
-  clientIdSet: boolean
-  clientSecretSet: boolean
 }
 
 const DEFAULT_URLS = {
@@ -220,8 +229,11 @@ const DEFAULT_URLS = {
   warrantyUrl:
     "https://apigtwb2c.us.dell.com/PROD/sbil/eapi/v5/asset-entitlements",
   dispatchUrl: "https://apigtwb2c.us.dell.com/PROD/support/cases/v2/dispatch",
-  techSupportUrl: "",
-  selfDispatchUrl: "",
+  sandboxTokenUrl: "https://apigtwb2cnp.us.dell.com/auth/oauth/v2/token",
+  techSupportUrl: "https://apigtwb2cnp.us.dell.com/td/sandbox/webcase",
+  selfDispatchUrl:
+    "https://apigtwb2cnp.us.dell.com/td/sandbox/dispatch/services/selfdispatch",
+  getCaseLiteUrl: "https://apigtwb2cnp.us.dell.com/td/sandbox/getcaselite",
 }
 
 export default function SettingsPage() {
@@ -237,13 +249,24 @@ export default function SettingsPage() {
   } | null>(null)
 
   const [cfg, setCfg] = useState<ConfigState>({
+    // Production
     clientId: "",
     clientSecret: "",
     tokenUrl: DEFAULT_URLS.tokenUrl,
     warrantyUrl: DEFAULT_URLS.warrantyUrl,
     dispatchUrl: DEFAULT_URLS.dispatchUrl,
-    techSupportUrl: "",
-    selfDispatchUrl: "",
+    clientIdSet: false,
+    clientSecretSet: false,
+    // Sandbox
+    sandboxClientId: "",
+    sandboxClientSecret: "",
+    sandboxTokenUrl: DEFAULT_URLS.sandboxTokenUrl,
+    techSupportUrl: DEFAULT_URLS.techSupportUrl,
+    selfDispatchUrl: DEFAULT_URLS.selfDispatchUrl,
+    getCaseLiteUrl: DEFAULT_URLS.getCaseLiteUrl,
+    sandboxClientIdSet: false,
+    sandboxClientSecretSet: false,
+    // Org
     orgName: "",
     orgContactName: "",
     orgContactEmail: "",
@@ -253,8 +276,6 @@ export default function SettingsPage() {
     orgCity: "",
     orgPostcode: "",
     orgCountry: "AU",
-    clientIdSet: false,
-    clientSecretSet: false,
   })
 
   // Load current config on mount
@@ -264,11 +285,20 @@ export default function SettingsPage() {
       .then((data) => {
         setCfg((prev) => ({
           ...prev,
+          // Production
           tokenUrl: data.dellTokenUrl || DEFAULT_URLS.tokenUrl,
           warrantyUrl: data.dellWarrantyUrl || DEFAULT_URLS.warrantyUrl,
           dispatchUrl: data.dellDispatchUrl || DEFAULT_URLS.dispatchUrl,
-          techSupportUrl: data.dellTechSupportUrl ?? "",
-          selfDispatchUrl: data.dellSelfDispatchUrl ?? "",
+          clientIdSet: data.dellClientIdSet ?? false,
+          clientSecretSet: data.dellClientSecretSet ?? false,
+          // Sandbox
+          sandboxTokenUrl: data.dellSandboxTokenUrl || DEFAULT_URLS.sandboxTokenUrl,
+          techSupportUrl: data.dellTechSupportUrl || DEFAULT_URLS.techSupportUrl,
+          selfDispatchUrl: data.dellSelfDispatchUrl || DEFAULT_URLS.selfDispatchUrl,
+          getCaseLiteUrl: data.dellGetCaseLiteUrl || DEFAULT_URLS.getCaseLiteUrl,
+          sandboxClientIdSet: data.dellSandboxClientIdSet ?? false,
+          sandboxClientSecretSet: data.dellSandboxClientSecretSet ?? false,
+          // Org
           orgName: data.orgName ?? "",
           orgContactName: data.orgContactName ?? "",
           orgContactEmail: data.orgContactEmail ?? "",
@@ -278,8 +308,6 @@ export default function SettingsPage() {
           orgCity: data.orgCity ?? "",
           orgPostcode: data.orgPostcode ?? "",
           orgCountry: data.orgCountry ?? "AU",
-          clientIdSet: data.dellClientIdSet ?? false,
-          clientSecretSet: data.dellClientSecretSet ?? false,
         }))
       })
       .catch(() => {})
@@ -314,11 +342,16 @@ export default function SettingsPage() {
     setSaveSuccess(false)
 
     const body: Record<string, string> = {
+      // Production endpoints
       dellTokenUrl: cfg.tokenUrl,
       dellWarrantyUrl: cfg.warrantyUrl,
       dellDispatchUrl: cfg.dispatchUrl,
+      // Sandbox endpoints
+      dellSandboxTokenUrl: cfg.sandboxTokenUrl,
       dellTechSupportUrl: cfg.techSupportUrl,
       dellSelfDispatchUrl: cfg.selfDispatchUrl,
+      dellGetCaseLiteUrl: cfg.getCaseLiteUrl,
+      // Org
       orgName: cfg.orgName,
       orgContactName: cfg.orgContactName,
       orgContactEmail: cfg.orgContactEmail,
@@ -333,6 +366,8 @@ export default function SettingsPage() {
     // Only include credentials if the user typed new ones
     if (cfg.clientId) body.dellClientId = cfg.clientId
     if (cfg.clientSecret) body.dellClientSecret = cfg.clientSecret
+    if (cfg.sandboxClientId) body.dellSandboxClientId = cfg.sandboxClientId
+    if (cfg.sandboxClientSecret) body.dellSandboxClientSecret = cfg.sandboxClientSecret
 
     const res = await fetch("/api/config", {
       method: "POST",
@@ -346,6 +381,14 @@ export default function SettingsPage() {
       if (cfg.clientId) setCfg((p) => ({ ...p, clientId: "", clientIdSet: true }))
       if (cfg.clientSecret)
         setCfg((p) => ({ ...p, clientSecret: "", clientSecretSet: true }))
+      if (cfg.sandboxClientId)
+        setCfg((p) => ({ ...p, sandboxClientId: "", sandboxClientIdSet: true }))
+      if (cfg.sandboxClientSecret)
+        setCfg((p) => ({
+          ...p,
+          sandboxClientSecret: "",
+          sandboxClientSecretSet: true,
+        }))
       setTimeout(() => setSaveSuccess(false), 3000)
     } else {
       const data = await res.json()
@@ -434,6 +477,42 @@ export default function SettingsPage() {
                 </span>
               )}
             </div>
+          </div>
+        </Card>
+
+        {/* Sandbox API Credentials */}
+        <Card>
+          <SectionTitle icon={ShieldCheck}>
+            Sandbox API Credentials
+          </SectionTitle>
+          <p className="text-sm text-slate-500 mb-4">
+            Used for Tech Support cases, Self-Dispatch requests, and case status
+            polling. These are separate from your warranty credentials and come
+            from the sandbox environment on your TechDirect API management page.
+          </p>
+
+          <div className="space-y-4">
+            <Field
+              label="Sandbox Client ID"
+              required
+              hint="From TechDirect API Management → Tech Support Requests (sandbox)"
+            >
+              <SecretInput
+                value={cfg.sandboxClientId}
+                onChange={set("sandboxClientId")}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                isSet={cfg.sandboxClientIdSet}
+              />
+            </Field>
+
+            <Field label="Sandbox Client Secret" required>
+              <SecretInput
+                value={cfg.sandboxClientSecret}
+                onChange={set("sandboxClientSecret")}
+                placeholder="Enter sandbox secret…"
+                isSet={cfg.sandboxClientSecretSet}
+              />
+            </Field>
           </div>
         </Card>
 
@@ -540,6 +619,9 @@ export default function SettingsPage() {
 
           <Card className="mt-3">
             <div className="space-y-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                Production (Warranty)
+              </p>
               <Field label="Token URL">
                 <Input
                   value={cfg.tokenUrl}
@@ -554,25 +636,35 @@ export default function SettingsPage() {
                   className="font-mono text-xs"
                 />
               </Field>
-              <Field
-                label="Tech Support API URL"
-                hint="From your Dell SDK docs — leave blank until you receive your Technical Support Requests API key approval"
-              >
+
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide pt-2">
+                Sandbox (Tech Support &amp; Self-Dispatch)
+              </p>
+              <Field label="Sandbox Token URL">
                 <Input
-                  value={cfg.techSupportUrl}
-                  onChange={(e) => set("techSupportUrl")(e.target.value)}
-                  placeholder="https://… (from Dell SDK docs)"
+                  value={cfg.sandboxTokenUrl}
+                  onChange={(e) => set("sandboxTokenUrl")(e.target.value)}
                   className="font-mono text-xs"
                 />
               </Field>
-              <Field
-                label="Self Dispatch API URL"
-                hint="From your Dell SDK docs — leave blank until you receive your Self Dispatch Support Requests API key approval"
-              >
+              <Field label="Tech Support (WebCase) URL">
+                <Input
+                  value={cfg.techSupportUrl}
+                  onChange={(e) => set("techSupportUrl")(e.target.value)}
+                  className="font-mono text-xs"
+                />
+              </Field>
+              <Field label="Self-Dispatch URL">
                 <Input
                   value={cfg.selfDispatchUrl}
                   onChange={(e) => set("selfDispatchUrl")(e.target.value)}
-                  placeholder="https://… (from Dell SDK docs)"
+                  className="font-mono text-xs"
+                />
+              </Field>
+              <Field label="GetCaseLite URL">
+                <Input
+                  value={cfg.getCaseLiteUrl}
+                  onChange={(e) => set("getCaseLiteUrl")(e.target.value)}
                   className="font-mono text-xs"
                 />
               </Field>

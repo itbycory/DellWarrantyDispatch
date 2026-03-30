@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createTechSupportCase, type TechSupportRequest } from "@/lib/dell-api"
-import { getConfig, isConfigured } from "@/lib/config"
+import { getConfig, isSandboxConfigured } from "@/lib/config"
 import { saveCase } from "@/lib/cases"
 
 export async function POST(request: NextRequest) {
-  if (!isConfigured()) {
+  if (!isSandboxConfigured()) {
     return NextResponse.json(
-      { error: "Dell API credentials are not configured. Go to Settings to add your Client ID and Secret." },
+      {
+        error:
+          "Sandbox API credentials are not configured. Go to Settings to add your Sandbox Client ID and Secret.",
+      },
       { status: 503 }
     )
   }
@@ -31,14 +34,21 @@ export async function POST(request: NextRequest) {
 
   for (const field of required) {
     if (!body[field]) {
-      return NextResponse.json({ error: `Missing required field: ${field}` }, { status: 400 })
+      return NextResponse.json(
+        { error: `Missing required field: ${field}` },
+        { status: 400 }
+      )
     }
   }
 
-  const { dellClientId, dellClientSecret } = getConfig()
+  const { dellSandboxClientId, dellSandboxClientSecret } = getConfig()
 
   try {
-    const result = await createTechSupportCase(body, dellClientId, dellClientSecret)
+    const result = await createTechSupportCase(
+      body,
+      dellSandboxClientId,
+      dellSandboxClientSecret
+    )
 
     if (result.caseNumber) {
       saveCase({
@@ -47,7 +57,10 @@ export async function POST(request: NextRequest) {
         serviceTag: body.serviceTag.toUpperCase(),
         productName: body.productName ?? "",
         issueDescription: `${body.problemTitle}: ${body.problemDescription}`,
-        severity: body.priority === "CRITICAL" || body.priority === "HIGH" ? "CRITICAL" : "NORMAL",
+        severity:
+          body.priority === "CRITICAL" || body.priority === "HIGH"
+            ? "CRITICAL"
+            : "NORMAL",
         submittedAt: new Date().toISOString(),
         contact: `${body.contactFirstName} ${body.contactLastName}`.trim(),
         contactEmail: body.contactEmail,

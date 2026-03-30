@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getCaseByNumber, updateCaseStatus } from "@/lib/cases"
-import { getCaseStatus } from "@/lib/dell-api"
-import { getConfig, isConfigured } from "@/lib/config"
+import { getCaseLiteStatus } from "@/lib/dell-api"
+import { getConfig, isSandboxConfigured } from "@/lib/config"
 
 // GET /api/cases/:id — return stored case
 export async function GET(
@@ -16,7 +16,7 @@ export async function GET(
   return NextResponse.json(c)
 }
 
-// POST /api/cases/:id/refresh — poll Dell for latest status
+// POST /api/cases/:id — poll Dell for latest status
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -28,17 +28,31 @@ export async function POST(
     return NextResponse.json({ error: "Case not found" }, { status: 404 })
   }
 
-  if (!isConfigured()) {
+  // Locally-logged cases (LOG- prefix) have no Dell case number to look up
+  if (id.startsWith("LOG-")) {
+    return NextResponse.json({
+      ...c,
+      _localOnly: true,
+      message:
+        "This case is logged locally only — no Dell case number has been assigned yet.",
+    })
+  }
+
+  if (!isSandboxConfigured()) {
     return NextResponse.json(
-      { error: "Dell API credentials not configured." },
+      { error: "Sandbox API credentials not configured." },
       { status: 503 }
     )
   }
 
-  const { dellClientId, dellClientSecret } = getConfig()
+  const { dellSandboxClientId, dellSandboxClientSecret } = getConfig()
 
   try {
-    const result = await getCaseStatus(id, dellClientId, dellClientSecret)
+    const result = await getCaseLiteStatus(
+      id,
+      dellSandboxClientId,
+      dellSandboxClientSecret
+    )
     updateCaseStatus(id, result.status, result.statusDetail)
     return NextResponse.json({
       ...c,
