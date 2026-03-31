@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getCaseByNumber, updateCaseStatus } from "@/lib/cases"
-import { getTechSupportCaseStatus } from "@/lib/dell-api"
-import { getConfig, isConfigured } from "@/lib/config"
+import { getCaseLiteStatus } from "@/lib/dell-api"
+import { getConfig, isSandboxConfigured } from "@/lib/config"
 
 export async function GET(
   _request: NextRequest,
@@ -21,14 +21,21 @@ export async function POST(
   const c = getCaseByNumber(id)
   if (!c) return NextResponse.json({ error: "Case not found" }, { status: 404 })
 
-  if (!isConfigured()) {
-    return NextResponse.json({ error: "Dell API credentials not configured." }, { status: 503 })
+  if (!isSandboxConfigured()) {
+    return NextResponse.json(
+      { error: "Sandbox API credentials not configured." },
+      { status: 503 }
+    )
   }
 
-  const { dellClientId, dellClientSecret } = getConfig()
+  const { dellSandboxClientId, dellSandboxClientSecret } = getConfig()
 
   try {
-    const result = await getTechSupportCaseStatus(id, dellClientId, dellClientSecret)
+    const result = await getCaseLiteStatus(
+      id,
+      dellSandboxClientId,
+      dellSandboxClientSecret
+    )
     updateCaseStatus(id, result.status, result.statusDetail)
     return NextResponse.json({
       ...c,
