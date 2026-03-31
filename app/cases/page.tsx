@@ -174,6 +174,14 @@ export default function CasesPage() {
         }))
         return
       }
+      // Local-only case — no Dell status available
+      if (data._localOnly) {
+        setRefreshError((prev) => ({
+          ...prev,
+          [caseNumber]: "Local case only — no Dell case number assigned yet. Raise the case manually on TechDirect to get a Dell case number.",
+        }))
+        return
+      }
       setCases((prev) =>
         prev.map((c) =>
           c.caseNumber === caseNumber
@@ -209,9 +217,9 @@ export default function CasesPage() {
           </button>
           <ShieldCheck className="w-6 h-6 text-[#007DB8]" />
           <div className="flex-1">
-            <h1 className="text-lg font-bold leading-tight">Dispatch Cases</h1>
+            <h1 className="text-lg font-bold leading-tight">Cases</h1>
             <p className="text-xs text-slate-300">
-              Track submitted warranty service jobs
+              Track logged warranty repair cases
             </p>
           </div>
         </div>
@@ -266,13 +274,13 @@ export default function CasesPage() {
             <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="font-medium text-slate-500">No cases yet</p>
             <p className="text-sm mt-1">
-              Cases will appear here after you submit a dispatch job.
+              Cases will appear here after you log an issue.
             </p>
             <button
               onClick={() => router.push("/")}
               className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#007DB8] hover:bg-[#006aa0] text-white text-sm font-medium"
             >
-              Submit a dispatch job
+              Log a new case
             </button>
           </div>
         )}
